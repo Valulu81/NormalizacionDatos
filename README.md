@@ -13,9 +13,8 @@ python .\app.py
 
 Después abre [http://127.0.0.1:5000](http://127.0.0.1:5000) y carga un archivo JSON con un arreglo de transacciones. El tamaño máximo permitido es 10 MB.
 
-**Aplicación desplegada:** [Abrir el sitio](URL_DE_DESPLIEGUE)
+**Aplicación desplegada: en Render** [Abrir el sitio](https://normalizaciondatos.onrender.com)
 
-Reemplaza `URL_DE_DESPLIEGUE` con el enlace público cuando despliegues la aplicación.
 
 ### Interfaz de línea de comandos
 
