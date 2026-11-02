@@ -1,0 +1,30 @@
+[
+  {
+    "id": "mix_001",
+    "amount": "42.75",
+    "currency": "USD",
+    "timestamp": "2025-03-10T12:00:00Z",
+    "status": "completed"
+  },
+  {
+    "transaction_id": 302,
+    "total": 8450,
+    "currency_code": "eur",
+    "created_at": "11/03/2025 08:30",
+    "state": "processing"
+  },
+  {
+    "ref": "M-15",
+    "amount": "£18.20",
+    "date": "2025-03-12",
+    "result": "declined"
+  },
+  {
+    "id": "",
+    "amount": "-12.00",
+    "currency": "US",
+    "timestamp": "2025-02-30",
+    "status": "unknown"
+  },
+  "registro que no es un objeto"
+]

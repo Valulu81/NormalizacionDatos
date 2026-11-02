@@ -1,0 +1,22 @@
+[
+  {
+    "transaction_id": 204,
+    "total": 10050,
+    "currency_code": "usd",
+    "created_at": "10/03/2025 14:22",
+    "state": "OK"
+  },
+  {
+    "ref": "A-77",
+    "amount": "€99,99",
+    "date": "2025-03-10T14:22:00Z",
+    "result": "success"
+  },
+  {
+    "transaction_id": 205,
+    "total": "2549",
+    "currency_code": "GBP",
+    "created_at": "2025-03-12",
+    "state": "processing"
+  }
+]

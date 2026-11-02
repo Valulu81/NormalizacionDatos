@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#faf5ee">
+  <title>Sistema de Normalización de Transacciones</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="{{ url_for('static', filename='js/tailwind-config.js') }}"></script>
+  <script id="export-transactions" type="application/json">{{ export_transactions|tojson }}</script>
+  <script id="invalid-records" type="application/json">{{ invalid_rows|tojson }}</script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body class="bg-background font-body text-on-surface antialiased">
+  <div>
+    <header class="fixed top-0 left-0 right-0 h-16 bg-surface/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(58,48,42,0.04)] z-40 flex items-center justify-between px-5 sm:px-8">
+      <a href="/" class="flex items-center gap-2 text-on-surface no-underline" aria-label="Inicio">
+        <span class="material-symbols-outlined text-primary">account_balance</span>
+        <span class="font-headline text-lg font-semibold">Transacciones</span>
+      </a>
+      {% if report %}
+      <span class="hidden sm:inline text-xs text-secondary">{{ filename }}</span>
+      {% endif %}
+    </header>
+
+    <main class="relative w-full min-h-screen bg-background pt-24 px-4 sm:px-8 pb-12">
+      <div class="flex flex-col w-full max-w-7xl mx-auto">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-2">
+          <div>
+            <h1 class="font-headline text-3xl sm:text-4xl font-semibold tracking-tight text-on-surface">Sistema de Normalización de Transacciones</h1>
+            <p class="text-on-surface-variant font-body text-sm mt-1">Procesamiento, validación y saneamiento de transacciones multimoneda.</p>
+            {% if report %}
+            <p class="text-xs text-secondary mt-2" role="status">
+              Archivo <span class="font-semibold text-on-surface">{{ filename }}</span> ·
+              {{ report.processed }} procesados · {{ report.valid|length }} válidos · {{ report.invalid|length }} inválidos
+            </p>
+            {% endif %}
+          </div>
+          <div class="flex items-center gap-3">
+            <button class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-on-primary font-medium text-sm hover:bg-primary-container hover:text-on-primary-container transition-all shadow-sm" data-action="open-upload" type="button">
+              <span class="material-symbols-outlined text-[18px]">upload_file</span>
+              <span>Cargar Archivo JSON</span>
+            </button>
+            <button class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-container-high text-on-surface font-medium text-sm hover:bg-surface-container-highest transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" data-action="download" type="button" {% if not report %}disabled{% endif %}>
+              <span class="material-symbols-outlined text-[18px]">download</span>
+              <span>Descargar Archivo</span>
+            </button>
+          </div>
+        </div>
+
+        {% if error %}
+        <div class="mb-6 flex items-start gap-2 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-sm text-on-error-container" role="alert">
+          <span class="material-symbols-outlined text-[20px]">error</span>
+          <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <section class="mb-8">
+          <h2 class="font-headline text-xl font-bold text-on-surface mb-3">Métricas</h2>
+          <div class="p-4 sm:p-6 rounded-2xl bg-surface-container-lowest shadow-sm border border-outline-variant/60">
+            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-5">
+              <div class="p-4 rounded-xl border border-outline-variant/60 bg-surface-container-lowest">
+                <div class="text-xs text-secondary font-medium">Procesados</div>
+                <div class="text-2xl font-headline font-bold text-on-surface mt-1">{{ metrics.processed }}</div>
+              </div>
+              <div class="p-4 rounded-xl border border-outline-variant/60 bg-surface-container-lowest">
+                <div class="text-xs text-secondary font-medium">Válidos</div>
+                <div class="text-2xl font-headline font-bold text-on-surface mt-1">{{ metrics.valid }}</div>
+              </div>
+              <div class="p-4 rounded-xl border border-outline-variant/60 bg-surface-container-lowest">
+                <div class="text-xs text-secondary font-medium">Inválidos</div>
+                <div class="text-2xl font-headline font-bold text-on-surface mt-1">{{ metrics.invalid }}</div>
+              </div>
+              {% for status in ("SUCCESS", "FAILED", "PENDING") %}
+              <div class="p-4 rounded-xl border border-outline-variant/60 bg-surface-container-lowest">
+                <div class="text-xs text-secondary font-medium">{{ status }}</div>
+                <div class="text-2xl font-headline font-bold text-on-surface mt-1">{{ metrics.by_status[status] }}</div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="flex flex-wrap items-center gap-2 pt-1" aria-label="Totales válidos por moneda">
+              {% for currency, total in metrics.totals_by_currency.items() %}
+              <span class="px-3.5 py-1.5 rounded-full bg-surface-container text-xs font-mono font-medium text-on-surface-variant">{{ currency }}: {{ "%.2f"|format(total) }}</span>
+              {% else %}
+              <span class="text-xs text-secondary">{% if report %}Sin transacciones válidas para calcular totales.{% else %}Los totales por moneda aparecerán al cargar un archivo.{% endif %}</span>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+
+        <section class="mb-8">
+          <div class="p-4 sm:p-6 rounded-2xl bg-surface-container-lowest shadow-sm border border-outline-variant/60">
+            <h2 class="font-headline text-xl font-bold text-on-surface mb-5">Transacciones normalizadas</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div>
+                <label for="sel-estado" class="block text-xs font-medium text-secondary mb-1.5">Estado</label>
+                <div class="relative">
+                  <select id="sel-estado" class="w-full appearance-none px-3.5 py-2 rounded-lg border border-outline-variant/60 bg-surface-container-lowest text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer">
+                    <option value="Todos">Todos</option>
+                    <option value="SUCCESS">SUCCESS</option>
+                    <option value="PENDING">PENDING</option>
+                    <option value="FAILED">FAILED</option>
+                  </select>
+                  <span class="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary text-[18px]">expand_more</span>
+                </div>
+              </div>
+              <div>
+                <label for="sel-moneda" class="block text-xs font-medium text-secondary mb-1.5">Moneda</label>
+                <div class="relative">
+                  <select id="sel-moneda" class="w-full appearance-none px-3.5 py-2 rounded-lg border border-outline-variant/60 bg-surface-container-lowest text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer">
+                    <option value="Todas">Todas</option>
+                    {% for currency in currencies %}<option value="{{ currency }}">{{ currency }}</option>{% endfor %}
+                  </select>
+                  <span class="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary text-[18px]">expand_more</span>
+                </div>
+              </div>
+              <div>
+                <label for="sel-fuente" class="block text-xs font-medium text-secondary mb-1.5">Fuente</label>
+                <div class="relative">
+                  <select id="sel-fuente" class="w-full appearance-none px-3.5 py-2 rounded-lg border border-outline-variant/60 bg-surface-container-lowest text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer">
+                    <option value="Todas">Todas</option>
+                    <option value="source_a">source_a</option>
+                    <option value="source_b">source_b</option>
+                    <option value="source_c">source_c</option>
+                  </select>
+                  <span class="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary text-[18px]">expand_more</span>
+                </div>
+              </div>
+            </div>
+            <div class="text-xs text-secondary mb-3" id="normalized-counter" aria-live="polite">
+              {% if report %}{{ report.valid|length }} de {{ report.valid|length }} transacciones visibles{% else %}Carga un archivo JSON para ver transacciones.{% endif %}
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs" id="table-normalized">
+                <thead>
+                  <tr class="bg-surface-container-low text-secondary text-[11px] font-semibold uppercase tracking-wider">
+                    <th scope="col" class="py-3 px-5">ID</th>
+                    <th scope="col" class="py-3 px-5">Monto</th>
+                    <th scope="col" class="py-3 px-5">Moneda</th>
+                    <th scope="col" class="py-3 px-5">Fecha</th>
+                    <th scope="col" class="py-3 px-5 text-center">Estado</th>
+                    <th scope="col" class="py-3 px-5">Fuente</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y-0 text-on-surface">
+                  {% for transaction in transactions %}
+                  <tr class="hover:bg-surface-container-low transition-colors border-b border-outline-variant/60" data-estado="{{ transaction.status }}" data-fuente="{{ transaction.source }}" data-moneda="{{ transaction.currency }}">
+                    <td class="py-3.5 px-5 font-mono text-on-surface">{{ transaction.id }}</td>
+                    <td class="py-3.5 px-5 font-mono font-medium">{{ "%.2f"|format(transaction.amount) }}</td>
+                    <td class="py-3.5 px-5 font-semibold text-secondary">{{ transaction.currency }}</td>
+                    <td class="py-3.5 px-5 font-mono text-secondary whitespace-nowrap">{{ transaction.timestamp }}</td>
+                    <td class="py-3.5 px-5 text-center">
+                      {% if transaction.status == "SUCCESS" %}
+                      <span class="px-2.5 py-0.5 rounded font-semibold text-xs tracking-wider bg-surface-container-high text-primary">{{ transaction.status }}</span>
+                      {% elif transaction.status == "PENDING" %}
+                      <span class="px-2.5 py-0.5 rounded font-semibold text-xs tracking-wider bg-secondary-fixed text-on-secondary-fixed">{{ transaction.status }}</span>
+                      {% else %}
+                      <span class="px-2.5 py-0.5 rounded font-semibold text-xs tracking-wider bg-tertiary-fixed text-on-tertiary-fixed-variant">{{ transaction.status }}</span>
+                      {% endif %}
+                    </td>
+                    <td class="py-3.5 px-5 font-mono text-secondary">{{ transaction.source }}</td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="6" class="py-8 px-5 text-center text-secondary">{% if report %}No se encontraron transacciones válidas.{% else %}Las transacciones aparecerán aquí después de cargar un archivo.{% endif %}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="mb-8">
+          <div class="p-4 sm:p-6 rounded-2xl bg-surface-container-lowest shadow-sm border border-outline-variant/60">
+            <div class="flex items-center justify-between gap-3 mb-5">
+              <h2 class="font-headline text-xl font-bold text-on-surface">Registros inválidos</h2>
+              {% if report %}<span class="px-2.5 py-1 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant text-xs font-semibold">{{ report.invalid|length }}</span>{% endif %}
+            </div>
+            {% if report %}
+            <div class="mb-4 flex flex-wrap gap-2 text-xs">
+              <span class="rounded-full bg-surface-container px-3 py-1.5 text-secondary">Pendientes: <strong id="pending-count">0</strong></span>
+              <span class="rounded-full bg-secondary-fixed px-3 py-1.5 text-on-secondary-fixed">Marcados: <strong id="marked-count">0</strong></span>
+              <span class="rounded-full bg-tertiary-fixed px-3 py-1.5 text-on-tertiary-fixed-variant">Separados: <strong id="separated-count">0</strong></span>
+              <span class="rounded-full border border-outline-variant/60 px-3 py-1.5 text-secondary">Descartados (excluidos de descarga): <strong id="discarded-count">0</strong></span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead>
+                  <tr class="bg-surface-container-low text-secondary text-[11px] font-semibold uppercase tracking-wider">
+                    <th scope="col" class="py-3 px-5">Posición</th>
+                    <th scope="col" class="py-3 px-5">Fuente</th>
+                    <th scope="col" class="py-3 px-5">Registro original</th>
+                    <th scope="col" class="py-3 px-5">Motivos</th>
+                    <th scope="col" class="py-3 px-5">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody class="text-on-surface" id="invalid-records-body"></tbody>
+              </table>
+            </div>
+            <p class="hidden py-4 text-sm text-secondary" id="invalid-empty">No hay registros pendientes ni marcados.</p>
+
+            <section class="hidden mt-6" id="separated-section" aria-labelledby="separated-title">
+              <div class="flex items-center justify-between gap-3 mb-3">
+                <h3 id="separated-title" class="font-headline text-lg font-bold text-on-surface">Registros separados</h3>
+                <span class="text-xs text-secondary">Se incluirán en `invalid_records.separated`.</span>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                  <thead><tr class="bg-surface-container-low text-secondary text-[11px] font-semibold uppercase tracking-wider">
+                    <th scope="col" class="py-3 px-5">Posición</th><th scope="col" class="py-3 px-5">Fuente</th>
+                    <th scope="col" class="py-3 px-5">Registro original</th><th scope="col" class="py-3 px-5">Motivos</th>
+                    <th scope="col" class="py-3 px-5">Acciones</th>
+                  </tr></thead>
+                  <tbody id="separated-records-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="hidden mt-6" id="discarded-section" aria-labelledby="discarded-title">
+              <div class="flex items-center justify-between gap-3 mb-3">
+                <h3 id="discarded-title" class="font-headline text-lg font-bold text-secondary">Registros descartados</h3>
+                <span class="text-xs text-secondary">Excluidos de la descarga.</span>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                  <thead><tr class="bg-surface-container-low text-secondary text-[11px] font-semibold uppercase tracking-wider">
+                    <th scope="col" class="py-3 px-5">Posición</th><th scope="col" class="py-3 px-5">Fuente</th>
+                    <th scope="col" class="py-3 px-5">Registro original</th><th scope="col" class="py-3 px-5">Motivos</th>
+                    <th scope="col" class="py-3 px-5">Acciones</th>
+                  </tr></thead>
+                  <tbody id="discarded-records-body"></tbody>
+                </table>
+              </div>
+            </section>
+            {% elif not report %}
+            <p class="py-4 text-sm text-secondary">Los registros rechazados y sus motivos aparecerán aquí.</p>
+            {% endif %}
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-inverse-surface/40 backdrop-blur-sm {% if not error %}hidden{% endif %}" id="modal-upload" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+    <div class="w-full max-w-lg rounded-2xl bg-surface-container-lowest shadow-xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h2 id="upload-title" class="font-headline text-2xl font-semibold text-on-surface">Cargar Archivo JSON</h2>
+          <p class="text-xs text-on-surface-variant mt-1">Sube transacciones para normalizarlas y validarlas.</p>
+        </div>
+        <button class="p-1 rounded-lg text-secondary hover:text-on-surface hover:bg-surface-container-high transition-colors" data-action="close-upload" type="button" aria-label="Cerrar">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+      <form method="post" enctype="multipart/form-data" id="upload-form">
+        <label for="file-input" id="drop-zone" class="p-8 rounded-xl bg-surface-container-low text-center flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-surface-container transition-colors border-2 border-dashed border-outline-variant/60">
+          <span class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
+            <span class="material-symbols-outlined text-[28px]">cloud_upload</span>
+          </span>
+          <span>
+            <span class="block text-sm font-semibold text-on-surface">Arrastra y suelta tu archivo JSON aquí</span>
+            <span class="block text-xs text-secondary mt-0.5">o selecciona desde tu equipo · máximo 10 MB</span>
+          </span>
+          <span id="selected-file" class="text-xs font-semibold text-primary break-all">Ningún archivo seleccionado</span>
+          <input class="sr-only" type="file" id="file-input" name="file" accept=".json,application/json" required>
+        </label>
+        <p id="file-error" class="hidden mt-3 text-xs text-error" role="alert"></p>
+        <div class="flex items-center justify-end gap-3 pt-5">
+          <button class="px-4 py-2 rounded-lg bg-surface-container text-on-surface-variant hover:text-on-surface text-xs font-semibold transition-colors" data-action="close-upload" type="button">Cancelar</button>
+          <button class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary-container text-xs font-semibold transition-colors" type="submit">
+            <span class="material-symbols-outlined text-[17px]">sync</span> Normalizar archivo
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</body>
+</html>
